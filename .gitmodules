@@ -1,0 +1,9 @@
+[submodule "gpiodev"]
+	path = gpiodev
+	url = https://github.com/sunipkmukherjee/gpiodev.git
+[submodule "network"]
+	path = network
+	url = https://github.com/sunipkmukherjee/network.git
+[submodule "clkgen"]
+	path = clkgen
+	url = https://github.com/sunipkmukherjee/clkgen.git
