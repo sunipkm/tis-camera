@@ -56,6 +56,181 @@ static void gstream_system_init(int *argc, char **argv[])
     }
 }
 
+bool gst_get_property(GstElement *src, const char *name, int &value)
+{
+    bool retval = true;
+    GValue val, min, max, default_val, step_sz, type, flags, cat, group;
+    gboolean ret = tcam_prop_get_tcam_property(TCAM_PROP(src),
+                                               name,
+                                               &val,
+                                               &min,
+                                               &max,
+                                               &default_val,
+                                               &step_sz,
+                                               &type,
+                                               &flags,
+                                               &cat,
+                                               &group);
+    if (!ret)
+    {
+        retval = false;
+        goto cleanup;
+    }
+    value = (int)g_value_get_int(&val);
+cleanup:
+    g_value_unset(&value);
+    g_value_unset(&min);
+    g_value_unset(&max);
+    g_value_unset(&default_value);
+    g_value_unset(&step_size);
+    g_value_unset(&type);
+    g_value_unset(&flags);
+    g_value_unset(&category);
+    g_value_unset(&group);
+    return retval;
+}
+
+bool gst_get_property(GstElement *src, const char *name, double &value)
+{
+    bool retval = true;
+    GValue val, min, max, default_val, step_sz, type, flags, cat, group;
+    gboolean ret = tcam_prop_get_tcam_property(TCAM_PROP(src),
+                                               name,
+                                               &val,
+                                               &min,
+                                               &max,
+                                               &default_val,
+                                               &step_sz,
+                                               &type,
+                                               &flags,
+                                               &cat,
+                                               &group);
+    if (!ret)
+    {
+        retval = false;
+        goto cleanup;
+    }
+    value = (double)g_value_get_double(&val);
+cleanup:
+    g_value_unset(&value);
+    g_value_unset(&min);
+    g_value_unset(&max);
+    g_value_unset(&default_value);
+    g_value_unset(&step_size);
+    g_value_unset(&type);
+    g_value_unset(&flags);
+    g_value_unset(&category);
+    g_value_unset(&group);
+    return retval;
+}
+
+bool gst_get_property(GstElement *src, const char *name, std::string &value)
+{
+    bool retval = true;
+    GValue val, min, max, default_val, step_sz, type, flags, cat, group;
+    gboolean ret = tcam_prop_get_tcam_property(TCAM_PROP(src),
+                                               name,
+                                               &val,
+                                               &min,
+                                               &max,
+                                               &default_val,
+                                               &step_sz,
+                                               &type,
+                                               &flags,
+                                               &cat,
+                                               &group);
+    if (!ret)
+    {
+        retval = false;
+        goto cleanup;
+    }
+    value = std::string((char *)g_value_get_string(&val));
+cleanup:
+    g_value_unset(&value);
+    g_value_unset(&min);
+    g_value_unset(&max);
+    g_value_unset(&default_value);
+    g_value_unset(&step_size);
+    g_value_unset(&type);
+    g_value_unset(&flags);
+    g_value_unset(&category);
+    g_value_unset(&group);
+    return retval;
+}
+
+bool gst_get_property(const GstElement *src, const char *name, bool &value)
+{
+    bool retval = true;
+    GValue val, min, max, default_val, step_sz, type, flags, cat, group;
+    gboolean ret = tcam_prop_get_tcam_property(TCAM_PROP(src),
+                                               name,
+                                               &val,
+                                               &min,
+                                               &max,
+                                               &default_val,
+                                               &step_sz,
+                                               &type,
+                                               &flags,
+                                               &cat,
+                                               &group);
+    if (!ret)
+    {
+        retval = false;
+        goto cleanup;
+    }
+    value = (bool)g_value_get_bool(&val);
+cleanup:
+    g_value_unset(&value);
+    g_value_unset(&min);
+    g_value_unset(&max);
+    g_value_unset(&default_value);
+    g_value_unset(&step_size);
+    g_value_unset(&type);
+    g_value_unset(&flags);
+    g_value_unset(&category);
+    g_value_unset(&group);
+    return retval;
+}
+
+bool gst_set_property(const GstElement *src, const char *name, int value)
+{
+    GValue val = G_VALUE_INIT;
+    g_value_init(&val, G_TYPE_INT);
+    g_value_set_int(&val, value);
+    bool ret = tcam_prop_set_tcam_property(TCAM_PROP(src), name, &val);
+    g_value_unset(&val);
+    return ret;
+}
+
+bool gst_set_property(const GstElement *src, const char *name, double value)
+{
+    GValue val = G_VALUE_INIT;
+    g_value_init(&val, G_TYPE_DOUBLE);
+    g_value_set_double(&val, value);
+    bool ret = tcam_prop_set_tcam_property(TCAM_PROP(src), name, &val);
+    g_value_unset(&val);
+    return ret;
+}
+
+bool gst_set_property(const GstElement *src, const char *name, std::string value)
+{
+    GValue val = G_VALUE_INIT;
+    g_value_init(&val, G_TYPE_STRING);
+    g_value_set_string(&val, (gchar *)value.c_str());
+    bool ret = tcam_prop_set_tcam_property(TCAM_PROP(src), name, &val);
+    g_value_unset(&val);
+    return ret;
+}
+
+bool gst_set_property(const GstElement *src, const char *name, bool value)
+{
+    GValue val = G_VALUE_INIT;
+    g_value_init(&val, G_TYPE_BOOLEAN);
+    bool ret = tcam_prop_set_tcam_property(TCAM_PROP(src), name, &val);
+    g_value_unset(&val);
+    return ret;
+}
+
 bool CCameraUnit_TIS::HasError(int error, unsigned int line) const
 {
     switch (error)
@@ -130,7 +305,9 @@ CCameraUnit_TIS::CCameraUnit_TIS()
 {
     // do initialization stuff
     short numcameras = 0;
+    
     // initialize camera
+    std::string errmsg = "";
 
     pipeline = gst_parse_launch("tcambin name=source ! videoconvert ! appsink name=sink", &err);
 
@@ -141,8 +318,36 @@ CCameraUnit_TIS::CCameraUnit_TIS()
         g_free(err);
         throw std::runtime_error(ermsg);
     }
-
+    
+    // get the source
     source = gst_bin_get_by_name(GST_BIN(pipeline), "source");
+    if (source == NULL)
+    {
+        errmsg = "Could not enumerate source.";
+        goto close_source;
+    }
+
+    // get cameras connected
+    GSList *serials = tcam_prop_get_device_serials(TCAM_PROP(source));
+
+    if (serials == NULL)
+    {
+        errmsg = "Could not enumerate devices.";
+        goto close_source;
+    }
+    
+    char *name, *ident, *conn_type;
+    
+    if (!tcam_prop_get_device_info(TCAM_PROP(source), serials, &name, &ident, &conn_type))
+    {
+        errmsg = "Could not retrieve device properties.";
+        goto close_source;
+    }
+
+    snprintf(cam_name, sizeof(cam_name) - 1, "%s", name);
+    g_free(name);
+    g_free(ident);
+    g_free(conn_type);
 
     if (gst_element_set_state(pipeline, GST_STATE_PLAYING) == GstStateChangeReturn::GST_STATE_CHANGE_FAILURE)
     {
@@ -151,23 +356,24 @@ CCameraUnit_TIS::CCameraUnit_TIS()
         gst_object_unref(pipeline);
     }
 
-    gboolean ret = tcam_prop_get_tcam_property(TCAM_PROP(source),
-                                                name,
-                                                &val,
-                                                &min,
-                                                &max,
-                                                &default_val,
-                                                &step_sz,
-                                                &type,
-                                                &flags,
-                                                &cat,
-                                                &group);
+    if (!gst_get_property(source, "width", &CCDWidth_))
+    {
+        errmsg = "Get property for width failed.";
+        goto close_source;
+    }
 
-    // get number of cameras and names
-    numcameras;
+    if (!gst_get_property(source, "height", &CCDHeight_))
+    {
 
-    CCDHeight_ = int(props.nPixelsY);
-    CCDWidth_ = int(props.nPixelsX);
+        errmsg = "Get property for height failed.";
+        goto close_source;
+    }
+
+    if (!gst_get_property(source, "exposure_max", &maxExposureUs_))
+    {
+        errmsg = "Get property for exposure max failed.";
+        goto close_source;
+    }
 
     imageLeft_ = 0;
     imageRight_ = CCDWidth_;
@@ -182,10 +388,20 @@ CCameraUnit_TIS::CCameraUnit_TIS()
     m_initializationOK = true;
 
     return;
+
+close_source:
+    gst_object_unref(source);
+
 close_pipeline:
     gst_object_unref(pipeline);
+
 close:
     m_initializationOK = false;
+
+    if (errmsg.length() > 0)
+    {
+        throw std::runtime_error(errmsg));
+    }
 }
 
 CCameraUnit_TIS::~CCameraUnit_TIS()

@@ -32,6 +32,7 @@ class CCameraUnit_TIS : public CCameraUnit
 
     float exposure_;
     bool exposure_updated_;
+    int maxExposureUs_;
 
     bool requestShutterOpen_;
     bool shutter_updated_;
