@@ -231,53 +231,81 @@ bool gst_set_property(const GstElement *src, const char *name, bool value)
     return ret;
 }
 
+GstFlowReturn CCameraUnit_TIS::ExposureCallback (GstElement* sink, void* user_data)
+{
+    GstFlowReturn retval = GST_FLOW_OK;
+    GstSample* sample = NULL;
+    CallbackData *callback_ptr = (CallbackData *) user_data;
+    CCameraUnit_TIS *self = callback_ptr->self;
+    CImageData *img = callback_ptr->img;
+    // acquire lock
+    std::lock_guard<std::mutex>(self->cs_);
+    /* Retrieve the buffer */
+    g_signal_emit_by_name(sink, "pull-sample", &sample, NULL);
+
+    if (sample)
+    {
+        // we have a valid sample
+        // do things with the image here
+        static guint framecount = 0;
+        int pixel_data = -1;
+
+        GstBuffer* buffer = gst_sample_get_buffer(sample);
+        GstMapInfo info; // contains the actual image
+        if (gst_buffer_map(buffer, &info, GST_MAP_READ))
+        {
+            GstVideoInfo* video_info = gst_video_info_new();
+            if (!gst_video_info_from_caps(video_info, gst_sample_get_caps(sample)))
+            {
+                // Could not parse video info (should not happen)
+                g_warning("Failed to parse video info");
+                retval = GST_FLOW_ERROR;
+                goto ret;
+            }
+
+            /* Get a pointer to the image data */
+            unsigned char* data = info.data;
+
+            /* Get the pixel value of the center pixel */
+            int stride = video_info->finfo->bits / 8;
+            unsigned int pixel_offset = video_info->width / 2 * stride +
+                video_info->width * video_info->height / 2 * stride;
+
+            // this is only one pixel
+            // when dealing with formats like BGRx
+            // pixel_data will have to consist out of
+            // pixel_offset   => B
+            // pixel_offset+1 => G
+            // pixel_offset+2 => R
+            // pixel_offset+3 => x
+            pixel_data = info.data[pixel_offset];
+
+            gst_buffer_unmap(buffer, &info);
+            gst_video_info_free(video_info);
+        }
+
+        GstClockTime timestamp = GST_BUFFER_PTS(buffer);
+        g_print("Captured frame %d, Pixel Value=%03d Timestamp=%" GST_TIME_FORMAT "            \r",
+                framecount, pixel_data,
+                GST_TIME_ARGS(timestamp));
+        framecount++;
+
+
+        // delete our reference so that gstreamer can handle the sample
+        gst_sample_unref (sample);
+    }
+ret:
+    return retval;
+}
+
 bool CCameraUnit_TIS::HasError(int error, unsigned int line) const
 {
-    switch (error)
-    {
-    default:
-        fprintf(stderr, "%s, %d: ATIK Error %d\n", __FILE__, line, error);
-        fflush(stderr);
-        return true;
-    case ARTEMIS_OK:
-        return false;
-
-#define ARTEMIS_ERROR(x)                                                    \
-    case x:                                                                 \
-        fprintf(stderr, "%s, %d: ARTEMIS error: " #x "\n", __FILE__, line); \
-        fflush(stderr);                                                     \
-        return true;
-
-        ARTEMIS_ERROR(ARTEMIS_INVALID_PARAMETER)
-        ARTEMIS_ERROR(ARTEMIS_NOT_CONNECTED)
-        ARTEMIS_ERROR(ARTEMIS_NOT_IMPLEMENTED)
-        ARTEMIS_ERROR(ARTEMIS_NO_RESPONSE)
-        ARTEMIS_ERROR(ARTEMIS_NOT_INITIALIZED)
-        ARTEMIS_ERROR(ARTEMIS_INVALID_FUNCTION)
-        ARTEMIS_ERROR(ARTEMIS_OPERATION_FAILED)
-#undef ARTEMIS_ERROR
-    }
+    return false;
 }
 
 int CCameraUnit_TIS::ArtemisGetCameraState(ArtemisHandle h)
 {
-    int state = ArtemisCameraState(h);
-    switch (state)
-    {
-#define ARTEMIS_STATE(x)           \
-    case x:                        \
-        status_ = std::string(#x); \
-        break;
-
-        ARTEMIS_STATE(CAMERA_ERROR)
-        ARTEMIS_STATE(CAMERA_IDLE)
-        ARTEMIS_STATE(CAMERA_WAITING)
-        ARTEMIS_STATE(CAMERA_EXPOSING)
-        ARTEMIS_STATE(CAMERA_READING)
-        ARTEMIS_STATE(CAMERA_DOWNLOADING)
-        ARTEMIS_STATE(CAMERA_FLUSHING)
-#undef ARTEMIS_STATE
-    }
+    int state = 0;
     return state;
 }
 
@@ -303,9 +331,6 @@ CCameraUnit_TIS::CCameraUnit_TIS()
       CCDWidth_(0),
       CCDHeight_(0)
 {
-    // do initialization stuff
-    short numcameras = 0;
-    
     // initialize camera
     std::string errmsg = "";
 
@@ -314,17 +339,24 @@ CCameraUnit_TIS::CCameraUnit_TIS()
     if (pipeline == NULL)
     {
         dbprintlf(RED_FG "Could not create pipeline, reason: %s", err->message);
-        std::string ermsg = err->message;
-        g_free(err);
-        throw std::runtime_error(ermsg);
+        errmsg = err->message;
+        goto final_cleanup;
     }
-    
+
+    // get the sink
+    sink = gst_bin_get_by_name(GST_BIN(pipeline), "sink");
+    if (sink == NULL)
+    {
+        errmsg = "Could not enumerate sink.";
+        goto close_pipeline;
+    }
+
     // get the source
     source = gst_bin_get_by_name(GST_BIN(pipeline), "source");
     if (source == NULL)
     {
         errmsg = "Could not enumerate source.";
-        goto close_source;
+        goto close_sink;
     }
 
     // get cameras connected
@@ -335,15 +367,15 @@ CCameraUnit_TIS::CCameraUnit_TIS()
         errmsg = "Could not enumerate devices.";
         goto close_source;
     }
-    
+
     char *name, *ident, *conn_type;
-    
+
     if (!tcam_prop_get_device_info(TCAM_PROP(source), serials, &name, &ident, &conn_type))
     {
         errmsg = "Could not retrieve device properties.";
         goto close_source;
     }
-
+    memset(cam_name, 0x0, sizeof(cam_name));
     snprintf(cam_name, sizeof(cam_name) - 1, "%s", name);
     g_free(name);
     g_free(ident);
@@ -351,9 +383,8 @@ CCameraUnit_TIS::CCameraUnit_TIS()
 
     if (gst_element_set_state(pipeline, GST_STATE_PLAYING) == GstStateChangeReturn::GST_STATE_CHANGE_FAILURE)
     {
-        dbprintlf(RED_FG "Could not set GStreamer to GST_STATE_PLAYING.");
-        g_free(err);
-        gst_object_unref(pipeline);
+        errmsg = "Could not set state to playing.";
+        goto close_source;
     }
 
     if (!gst_get_property(source, "width", &CCDWidth_))
@@ -392,10 +423,14 @@ CCameraUnit_TIS::CCameraUnit_TIS()
 close_source:
     gst_object_unref(source);
 
+close_sink:
+    gst_object_unref(source);
+
 close_pipeline:
+    g_free(err);
     gst_object_unref(pipeline);
 
-close:
+final_cleanup:
     m_initializationOK = false;
 
     if (errmsg.length() > 0)

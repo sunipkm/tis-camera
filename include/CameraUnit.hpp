@@ -137,6 +137,18 @@ public:
      * @return int 
      */
     virtual int GetCCDHeight() const = 0;
+    /**
+     * @brief Set the gain of the camera
+     * 
+     * @return int Current gain
+     */
+    virtual int SetGain() const = 0;
+    /**
+     * @brief Get the current gain of the camera
+     * 
+     * @return int 
+     */
+    virtual int GetGain() const = 0;
 };
 
 #endif // __CAMERAUNIT_HPP__

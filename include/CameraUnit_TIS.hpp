@@ -11,18 +11,24 @@
 #ifndef __CAMERAUNIT_ATIK_HPP__
 #define __CAMERAUNIT_ATIK_HPP__
 
+#include <gst/gst.h>
+#include <tcamprop.h>
+
 #include "CameraUnit.hpp"
 
 #include <mutex>
+#include <condition_variable>
 
 class CCameraUnit_TIS : public CCameraUnit
 {
     GError *err;
     GstElement *pipeline;
     GstElement *source;
+    GstElement *sink;
 
     bool m_initializationOK;
     std::mutex cs_;
+    std::condition_variable cond_;
     bool cancelCapture_;
     std::string status_;
 
@@ -56,6 +62,12 @@ class CCameraUnit_TIS : public CCameraUnit
     int CCDHeight_;
 
     char cam_name[100];
+
+    struct CallbackData
+    {
+        CCameraUnit_TIS *self;
+        CImageData *img;
+    }
 
 public:
     /**
@@ -93,6 +105,7 @@ private:
     void SetShutter(bool open);
     bool HasError(int error, unsigned int line) const;
     int ArtemisGetCameraState(ArtemisHandle h);
+    static GstFlowReturn ExposureCallback(GstElement *sink, void * user_data);
 };
 
 #endif // __CAMERAUNIT_ATIK_HPP__
